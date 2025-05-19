@@ -122,9 +122,7 @@ async function runCli() {
       describe: 'Show the current status of environment variables relative to the backend',
       builder: (yargs) => yargs.options(commonOptions),
       handler: async (argv) => {
-        if (verifyConfig().valid) {
-          await status(argv)
-        }
+        await status(argv)
       },
     })
     .command({

@@ -15,7 +15,9 @@
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "obuild src/index.ts"
+    "build": "obuild src/index.ts",
+    "prepare": "pnpm build",
+    "release": "pnpm pack && changelogen --release --major && pnpm build && pnpm publish --access=public"
   },
   "keywords": [],
   "author": {

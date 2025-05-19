@@ -2,7 +2,6 @@ import type { Dirent } from 'node:fs'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import defu from 'defu'
-import destr from 'destr'
 import { hash } from 'ohash'
 import { basename, dirname, extname, join, matchesGlob, relative } from 'pathe'
 import { parse, serialize } from 'rc9'
@@ -18,7 +17,7 @@ import type {
   EnvsyncConfig,
   LocalBackend,
 } from './types'
-import { consola, initializeStorage } from './utils'
+import { consola, initializeStorage, verifyArgs } from './utils'
 
 const ignoredDirectories = new Set(['.git', 'node_modules', 'dist'])
 
@@ -85,86 +84,17 @@ export async function findEnvFiles(dir: string, recursive = true): Promise<strin
 }
 
 export async function sync(argv: Arguments) {
-  let config: EnvsyncConfig
   let storage: Storage<StorageValue>
-
-  const { 'remote-config': useRemoteConfig, 'backend-type': backendType } = argv
-  if (useRemoteConfig) {
-    if (!backendType) {
-      consola.error('Missing required argument for backend type')
-      return
-    }
-    switch (backendType) {
-      case 'azure-storage': {
-        if (!argv['azure-storage-accountName'] || !argv['azure-storage-containerName']) {
-          consola.error('Missing required arguments for Azure Storage backend')
-        }
-        storage = await initializeStorage({
-          backend: {
-            type: 'azure-storage',
-            name: backendType,
-            config: {
-              accountName: argv['azure-storage-accountName'] as string,
-              containerName: argv['azure-storage-containerName'] as string,
-            },
-          },
-        })
-        break
-      }
-      case 'azure-key-vault': {
-        if (!argv['azure-key-vault-endpoint'] || !argv['azure-key-vault-vaultName']) {
-          consola.error('Missing required arguments for Azure Key Vault backend')
-        }
-        storage = await initializeStorage({
-          backend: {
-            type: 'azure-key-vault',
-            name: backendType,
-            config: {
-              vaultName: argv['azure-key-vault-vaultName'] as string,
-              endpoint: argv['azure-key-vault-endpoint'] as string,
-            },
-          },
-        })
-        break
-      }
-      case 'azure-app-config': {
-        if (!argv['azure-app-config-endpoint'] || !argv['azure-app-config-appConfigName']) {
-          consola.error('Missing required arguments for Azure App Configuration backend')
-        }
-        storage = await initializeStorage({
-          backend: {
-            type: 'azure-app-config',
-            name: backendType,
-            config: {
-              appConfigName: argv['azure-app-config-appConfigName'] as string,
-              endpoint: argv['azure-app-config-endpoint'] as string,
-              label: argv['azure-app-config-label'] || '',
-              prefix: argv['azure-app-config-prefix'] || '',
-            },
-          },
-        })
-        break
-      }
-      default: {
-        throw new Error('Unsupported backend type')
-      }
-    }
-
-    const hasConfig = await storage.hasItem('envsync.json')
-    if (hasConfig) {
-      config = destr(await storage.getItem('envsync.json'))
-    } else {
-      consola.error('No configuration found at remote')
-      return
-    }
-  } else {
-    if (verifyConfig().valid) {
-      config = verifyConfig().config
-      storage = await initializeStorage(config)
-    } else return
+  let config: EnvsyncConfig
+  consola.start('Conecting to remote storage')
+  try {
+    const result = await verifyArgs(argv)
+    storage = result.storage
+    config = result.config
+  } catch (error) {
+    process.exit(1)
   }
-
-  consola.info(`Running sync with backend ${config.backend?.name} (${config.backend?.type})...`)
+  consola.start(`Running sync with backend ${config.backend?.name} (${config.backend?.type})...\n`)
 
   const files = config.files || []
 
@@ -185,7 +115,7 @@ export async function sync(argv: Arguments) {
         encoding: 'utf-8',
       })
     } catch {
-      consola.warn(`Local file missing: ${localPath}`)
+      consola.info(`Local file missing: ${localPath}`)
     }
 
     const remoteContent = await storage.getItem(remoteKey)
@@ -255,7 +185,7 @@ export async function update(argv?: Arguments) {
         consola.info(`Local file is empty: ${localPath}. Remote will be cleared.`)
       }
     } catch {
-      consola.warn(`Local file missing: ${localPath}`)
+      consola.info(`Local file missing: ${localPath}`)
       continue
     }
 
@@ -300,8 +230,20 @@ export async function clear(_argv: Record<string, unknown>) {
 }
 
 export async function status(argv: Record<string, unknown>) {
-  const { config } = verifyConfig()
-  const storage = await initializeStorage(config)
+  let storage: Storage<StorageValue>
+  let config: EnvsyncConfig
+  consola.start('Conecting to remote storage')
+  try {
+    const result = await verifyArgs(argv)
+    storage = result.storage
+    config = result.config
+  } catch (error) {
+    process.exit(1)
+  }
+  consola.start(
+    `Running status with backend ${config.backend?.name} (${config.backend?.type})...\n`,
+  )
+
   const files = config.files || []
   let updateNeeded = false
 
@@ -319,7 +261,7 @@ export async function status(argv: Record<string, unknown>) {
     try {
       localContent = await readFile(file.path, 'utf8')
     } catch {
-      consola.warn(`Local file missing: ${localPath}`)
+      consola.info(`Local file missing: ${localPath}`)
       continue
     }
 
