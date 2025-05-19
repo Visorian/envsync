@@ -34,7 +34,12 @@
 
 ### For syncing only
 
-1. Execute `envsync sync`
+1. Add the optional dependencies of the backend you want to use to your devDependencies. For example for azure-storage, use
+```
+pnpm add -D @azure/identity @azure/storage-blob
+```
+2. Execute `envsync sync` or in a configless setup (config file is also storage in the remote location)
+`envsync sync --remote-config --backend-type azure-storage --azure-storage-accountName YOUR_ACCOUNT_NAME --azure-storage-containerName YOUR_CONTAINER_NAME`
 
 ⚠️ **Important**
 
