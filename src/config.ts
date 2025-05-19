@@ -19,16 +19,15 @@ export const { config, configFile, layers } = await loadConfig<EnvsyncConfig>({
 
 export const envsyncConfig = layers?.length ? config : undefined
 
-export function verifyConfig(
-  config: typeof envsyncConfig = envsyncConfig,
-): NonNullable<typeof envsyncConfig> {
+export function verifyConfig(config: typeof envsyncConfig = envsyncConfig): {
+  config: NonNullable<typeof envsyncConfig>
+  valid: boolean
+} {
   if (!config) {
-    consola.error(
-      'No configuration found. Please run init first or provide the required parameters.',
-    )
-    throw new Error('No configuration found.')
+    consola.error('No configuration found. Please run init first.')
+    return { config: {}, valid: false }
   }
-  return config
+  return { config, valid: true }
 }
 export function createEnvsyncConfig(config: EnvsyncConfig, pwd?: string) {
   const configPath = path.join(pwd ?? process.cwd(), 'envsync.json')

@@ -29,6 +29,9 @@ importers:
       defu:
         specifier: ^6.1.4
         version: 6.1.4
+      destr:
+        specifier: ^2.0.5
+        version: 2.0.5
       magicast:
         specifier: ^0.3.5
         version: 0.3.5

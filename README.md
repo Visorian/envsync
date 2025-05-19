@@ -1,9 +1,9 @@
 # envsync
 
+> Effortless environment file synchronization
+
 [![npm version](https://img.shields.io/npm/v/envsync?style=flat&colorA=222&colorB=448aff)](https://npmjs.com//envsync)
 [![License](https://img.shields.io/github/license/visorian/envsync?style=flat&colorA=222&colorB=448aff)](./LICENSE)
-
-> Effortless environment file synchronization and management for modern projects.
 
 > *Did you receive the .env file I shared in Discord?*
 
@@ -15,9 +15,8 @@
 
 - 🔍 **Auto-detects** `.env` files in your project (root and subfolders)
 - 🗂️ **Supports multiple backends powered by unstorage**: Currently supported Azure Storage, Azure Key Vault, Azure App Configuration
-- 📝 **Interactive CLI** for setup and management
-- 🛡️ **Respects `.gitignore`** for file discovery
-- 🔄 **Sync, update, status, and clear** commands
+- **Supports merging**: Supports merging with existing settings in .env files. Duplicate keys will be overwritten by the remote state
+- 📝 **Interactive CLI** for setup and management - Run `envsync --help` for available options
 
 ### Planned
 
@@ -26,6 +25,22 @@
 - Support remote encryption at rest
 
 ---
+
+## Quickstart
+
+1. Initialize new envsync config with `envsync init`
+2. Execute `envsync update` to push the configured `.env` files to the remote location
+3. Execute `envsync sync` anywhere you want to pull the current version from the remote location
+
+### For syncing only
+
+1. Execute `envsync sync`
+
+⚠️ **Important**
+
+- The preferred way of authenticating to remote storage (for example Azure Key Vault) should be an interactive login session with `az login` or `Connect-AzAccount`. Adding more env variables to authenticate to a service is not what we want to achieve.
+- Please cofigure permissions for reading and writing with your storage provider. For example in Azure you should only provide write permissions to people you want to update the .env files by assigning the respective RBAC (Role-Based Access Control) roles.
+- Remember that secrets stored in `.env` files are unecrypted and should only be for local services or extremely temporary. They cannot be recalled once they are on someones computer.
 
 ## Install
 

@@ -1,6 +1,13 @@
+process.once('SIGINT', () => {
+  // Handle ctrl+c
+  consola.error('Aborted by user.')
+  process.exit(1)
+})
+
 import yargs from 'yargs'
 import { envsyncConfig, verifyConfig } from './config'
 import { clear, init, status, sync, update } from './envvfiles'
+import type { Arguments } from './types'
 import { consola } from './utils'
 
 // Define common options for sync, status, and clear commands
@@ -26,13 +33,19 @@ const commonOptions = {
   overwrite: {
     alias: 'o',
     type: 'boolean',
-    description: 'Overwrite existing environment files',
+    description: 'Overwrite existing environment files in the remote location when running update',
     demandOption: false,
   },
   merge: {
     alias: 'm',
     type: 'boolean',
-    description: 'Merge existing environment files',
+    description: 'Merge with existing local environment files',
+    demandOption: false,
+  },
+  'remote-config': {
+    alias: 'r',
+    type: 'boolean',
+    description: 'Use configuration stored in remote location',
     demandOption: false,
   },
   'azure-storage-accountName': {
@@ -72,34 +85,46 @@ const commonOptions = {
   },
 } as const
 
+const logo = `
+   ___          ___
+  | __|_ ___ __/ __|_  _ _ _  __
+ _| _|| ' \\ V /\\__ \\ || | ' \\/ _|
+(_)___|_||_\\_/ |___/\\_, |_||_\\__|
+                   |__/
+`
+
 async function runCli() {
-  console.log(`
-    ___          ___
-   | __|_ ___ __/ __|_  _ _ _  __
-  _| _|| ' \\ V /\\__ \\ || | ' \\/ _|
- (_)___|_||_\\_/ |___/\\_, |_||_\\__|
-                     |__/
-  `)
   yargs(process.argv.slice(2))
     .scriptName('envsync')
+    .option('no-logo', {
+      alias: 'l',
+      type: 'boolean',
+      description: 'Suppress ASCII logo on startup',
+      default: false,
+    })
+    // Middleware runs once immediately after parse, before commands/help
+    .middleware((argv) => {
+      if (!argv.noLogo) {
+        console.log(logo)
+      }
+    })
     .usage('$0 <command> [options]')
     .command({
       command: 'sync',
       describe: 'Synchronize environment variables with the backend',
       builder: (yargs) => yargs.options(commonOptions),
       handler: async (argv) => {
-        verifyConfig()
-        await sync(argv)
+        await sync(argv as Arguments)
       },
     })
     .command({
       command: 'status',
-      describe:
-        'Show the current status of environment variables relative to the backend',
+      describe: 'Show the current status of environment variables relative to the backend',
       builder: (yargs) => yargs.options(commonOptions),
       handler: async (argv) => {
-        verifyConfig()
-        await status(argv)
+        if (verifyConfig().valid) {
+          await status(argv)
+        }
       },
     })
     .command({
@@ -115,8 +140,9 @@ async function runCli() {
       describe: 'Update an existing environment sync configuration',
       builder: (yargs) => yargs.options(commonOptions),
       handler: async (argv) => {
-        verifyConfig()
-        update(argv)
+        if (verifyConfig().valid) {
+          update(argv as Arguments)
+        }
       },
     })
     .command({
@@ -124,8 +150,9 @@ async function runCli() {
       describe: 'Clear local environment variables',
       builder: (yargs) => yargs.options(commonOptions),
       handler: async (argv) => {
-        verifyConfig()
-        await clear(argv)
+        if (verifyConfig().valid) {
+          await clear(argv)
+        }
       },
     })
     .command({
@@ -136,13 +163,10 @@ async function runCli() {
         verifyConfig()
         if (!envsyncConfig) {
           consola.info('No configuration found.')
-          const createNew = await consola.prompt(
-            'Would you like to create a new configuration?',
-            {
-              type: 'confirm',
-              initial: true,
-            },
-          )
+          const createNew = await consola.prompt('Would you like to create a new configuration?', {
+            type: 'confirm',
+            initial: true,
+          })
 
           if (createNew) {
             // Redirect to init command
@@ -156,6 +180,7 @@ async function runCli() {
         console.log(JSON.stringify(envsyncConfig, null, 2))
       },
     })
+    .strict()
     .demandCommand(1, 'You need at least one command before moving on')
     .help()
     .version()

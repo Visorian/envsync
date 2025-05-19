@@ -1,11 +1,13 @@
 import type { Dirent } from 'node:fs'
 import { existsSync } from 'node:fs'
-import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import defu from 'defu'
+import destr from 'destr'
 import { hash } from 'ohash'
-import { basename, extname, join, matchesGlob, relative } from 'pathe'
+import { basename, dirname, extname, join, matchesGlob, relative } from 'pathe'
 import { parse, serialize } from 'rc9'
 import { withLeadingSlash } from 'ufo'
+import type { Storage, StorageValue } from 'unstorage'
 import { createEnvsyncConfig, envsyncConfig, verifyConfig } from './config'
 import type {
   Arguments,
@@ -50,14 +52,9 @@ function isIgnoredByPatterns(relPath: string, patterns: string[]): boolean {
   return false
 }
 
-export async function findEnvFiles(
-  dir: string,
-  recursive = true,
-): Promise<string[]> {
+export async function findEnvFiles(dir: string, recursive = true): Promise<string[]> {
   const gitignorePath = join(dir, '.gitignore')
-  const gitignorePatterns = existsSync(gitignorePath)
-    ? await parseGitignore(gitignorePath)
-    : []
+  const gitignorePatterns = existsSync(gitignorePath) ? await parseGitignore(gitignorePath) : []
 
   const envFiles: string[] = []
 
@@ -74,18 +71,10 @@ export async function findEnvFiles(
       const relPath = relative(dir, fullPath)
       if (entry.isDirectory()) {
         if (ignoredDirectories.has(entry.name)) continue
-        if (
-          gitignorePatterns.length &&
-          isIgnoredByPatterns(relPath, gitignorePatterns)
-        )
-          continue
+        if (gitignorePatterns.length && isIgnoredByPatterns(relPath, gitignorePatterns)) continue
         if (recursive) await walk(fullPath)
       } else if (entry.isFile() && basename(entry.name).startsWith('.env')) {
-        if (
-          gitignorePatterns.length &&
-          isIgnoredByPatterns(relPath, gitignorePatterns)
-        )
-          continue
+        if (gitignorePatterns.length && isIgnoredByPatterns(relPath, gitignorePatterns)) continue
         envFiles.push(fullPath)
       }
     }
@@ -95,19 +84,94 @@ export async function findEnvFiles(
   return envFiles
 }
 
-export async function sync(argv?: Arguments) {
-  const config = verifyConfig()
+export async function sync(argv: Arguments) {
+  let config: EnvsyncConfig
+  let storage: Storage<StorageValue>
 
-  consola.info(
-    `Running sync with backend ${envsyncConfig?.backend?.name} (${envsyncConfig?.backend?.type})...`,
-  )
+  const { 'remote-config': useRemoteConfig, 'backend-type': backendType } = argv
+  if (useRemoteConfig) {
+    if (!backendType) {
+      consola.error('Missing required argument for backend type')
+      return
+    }
+    switch (backendType) {
+      case 'azure-storage': {
+        if (!argv['azure-storage-accountName'] || !argv['azure-storage-containerName']) {
+          consola.error('Missing required arguments for Azure Storage backend')
+        }
+        storage = await initializeStorage({
+          backend: {
+            type: 'azure-storage',
+            name: backendType,
+            config: {
+              accountName: argv['azure-storage-accountName'] as string,
+              containerName: argv['azure-storage-containerName'] as string,
+            },
+          },
+        })
+        break
+      }
+      case 'azure-key-vault': {
+        if (!argv['azure-key-vault-endpoint'] || !argv['azure-key-vault-vaultName']) {
+          consola.error('Missing required arguments for Azure Key Vault backend')
+        }
+        storage = await initializeStorage({
+          backend: {
+            type: 'azure-key-vault',
+            name: backendType,
+            config: {
+              vaultName: argv['azure-key-vault-vaultName'] as string,
+              endpoint: argv['azure-key-vault-endpoint'] as string,
+            },
+          },
+        })
+        break
+      }
+      case 'azure-app-config': {
+        if (!argv['azure-app-config-endpoint'] || !argv['azure-app-config-appConfigName']) {
+          consola.error('Missing required arguments for Azure App Configuration backend')
+        }
+        storage = await initializeStorage({
+          backend: {
+            type: 'azure-app-config',
+            name: backendType,
+            config: {
+              appConfigName: argv['azure-app-config-appConfigName'] as string,
+              endpoint: argv['azure-app-config-endpoint'] as string,
+              label: argv['azure-app-config-label'] || '',
+              prefix: argv['azure-app-config-prefix'] || '',
+            },
+          },
+        })
+        break
+      }
+      default: {
+        throw new Error('Unsupported backend type')
+      }
+    }
 
-  const storage = await initializeStorage(config)
+    const hasConfig = await storage.hasItem('envsync.json')
+    if (hasConfig) {
+      config = destr(await storage.getItem('envsync.json'))
+    } else {
+      consola.error('No configuration found at remote')
+      return
+    }
+  } else {
+    if (verifyConfig().valid) {
+      config = verifyConfig().config
+      storage = await initializeStorage(config)
+    } else return
+  }
+
+  consola.info(`Running sync with backend ${config.backend?.name} (${config.backend?.type})...`)
+
   const files = config.files || []
 
   for (const file of files) {
     const remoteKey = hash(withLeadingSlash(file.path))
     const localPath = withLeadingSlash(file.path)
+    const localFileExists = existsSync(file.path)
 
     const hasRemote = await storage.hasItem(remoteKey)
     if (!hasRemote) {
@@ -117,10 +181,11 @@ export async function sync(argv?: Arguments) {
 
     let localContent = ''
     try {
-      localContent = await readFile(file.path, 'utf8')
+      localContent = await readFile(file.path, {
+        encoding: 'utf-8',
+      })
     } catch {
       consola.warn(`Local file missing: ${localPath}`)
-      localContent = ''
     }
 
     const remoteContent = await storage.getItem(remoteKey)
@@ -132,7 +197,7 @@ export async function sync(argv?: Arguments) {
     const localHash = hash(localContent)
     const remoteHash = hash(remoteContent)
 
-    if (localHash !== remoteHash) {
+    if (localHash !== remoteHash || (!remoteContent && !localFileExists)) {
       const remoteContentObject = parse(remoteContent as string)
       let updatedContentObject = remoteContentObject
       if (argv?.merge || envsyncConfig?.mergeEnvFiles) {
@@ -141,7 +206,10 @@ export async function sync(argv?: Arguments) {
       }
       consola.info(`Updating local file from remote: ${localPath}`)
       try {
-        await writeFile(file.path, serialize(updatedContentObject), 'utf8')
+        await mkdir(dirname(file.path), { recursive: true })
+        await writeFile(file.path, serialize(updatedContentObject), {
+          encoding: 'utf8',
+        })
         consola.success(`Updated: ${localPath}`)
       } catch {
         consola.error(`Failed to write file: ${localPath}`)
@@ -154,11 +222,9 @@ export async function sync(argv?: Arguments) {
 
 export async function update(argv?: Arguments) {
   const { overwrite } = argv ?? {}
-  const config = verifyConfig()
+  const { config } = verifyConfig()
 
-  consola.info(
-    `Running update with backend ${envsyncConfig?.backend?.name} (${envsyncConfig?.backend?.type})...`,
-  )
+  consola.info(`Running update with backend ${config.backend?.name} (${config.backend?.type})...`)
 
   const storage = await initializeStorage(config)
   const files = config.files || []
@@ -171,13 +237,10 @@ export async function update(argv?: Arguments) {
     let shouldUpdate = true
 
     if (hasRemote && !overwrite) {
-      shouldUpdate = await consola.prompt(
-        `Remote already has ${localPath}. Overwrite?`,
-        {
-          type: 'confirm',
-          initial: false,
-        },
-      )
+      shouldUpdate = await consola.prompt(`Remote already has ${localPath}. Overwrite?`, {
+        type: 'confirm',
+        initial: false,
+      })
     }
 
     if (!shouldUpdate) {
@@ -187,11 +250,9 @@ export async function update(argv?: Arguments) {
 
     let localContent: string
     try {
-      localContent = await readFile(file.path, 'utf8')
+      localContent = serialize(parse(await readFile(file.path, 'utf8')))
       if (localContent.length === 0) {
-        consola.info(
-          `Local file is empty: ${localPath}. Remote will be cleared.`,
-        )
+        consola.info(`Local file is empty: ${localPath}. Remote will be cleared.`)
       }
     } catch {
       consola.warn(`Local file missing: ${localPath}`)
@@ -204,7 +265,7 @@ export async function update(argv?: Arguments) {
 }
 
 export async function clear(_argv: Record<string, unknown>) {
-  const config = verifyConfig()
+  const { config } = verifyConfig()
 
   consola.info(
     `Running update with backend ${envsyncConfig?.backend?.name} (${envsyncConfig?.backend?.type})...`,
@@ -238,8 +299,8 @@ export async function clear(_argv: Record<string, unknown>) {
   consola.success('All remote .env files deleted.')
 }
 
-export async function status(_argv?: Record<string, unknown>) {
-  const config = verifyConfig()
+export async function status(argv: Record<string, unknown>) {
+  const { config } = verifyConfig()
   const storage = await initializeStorage(config)
   const files = config.files || []
   let updateNeeded = false
@@ -287,7 +348,7 @@ export async function status(_argv?: Record<string, unknown>) {
       },
     )
     if (runSync) {
-      await sync()
+      await sync(argv)
     }
   }
 }
@@ -323,14 +384,11 @@ export async function init(argv: Record<string, unknown>) {
     consola.debug(`- ${file}`)
   }
 
-  const selectedFiles = await consola.prompt(
-    'Select .env files to add to config:',
-    {
-      type: 'multiselect',
-      options: foundFiles.map((file) => ({ label: file, value: file })),
-      initial: foundFiles,
-    },
-  )
+  const selectedFiles = await consola.prompt('Select .env files to add to config:', {
+    type: 'multiselect',
+    options: foundFiles.map((file) => ({ label: file, value: file })),
+    initial: foundFiles,
+  })
 
   if (selectedFiles.length === 0) {
     consola.info('No files selected. Initialization cancelled.')
@@ -350,11 +408,7 @@ export async function init(argv: Record<string, unknown>) {
     initial: 'local',
   })
 
-  let backend:
-    | AzureStorageBackend
-    | AzureKeyVaultBackend
-    | AzureAppConfigBackend
-    | LocalBackend
+  let backend: AzureStorageBackend | AzureKeyVaultBackend | AzureAppConfigBackend | LocalBackend
 
   if (backendType === 'azure-storage') {
     const accountName =
@@ -378,10 +432,15 @@ export async function init(argv: Record<string, unknown>) {
       (await consola.prompt('Azure Key Vault Name:', {
         type: 'text',
       }))
+    const endpoint =
+      (argv['azure-key-vault-endpoint'] as string) ||
+      (await consola.prompt('Azure Key Vault Endpoint:', {
+        type: 'text',
+      }))
     backend = {
       type: 'azure-key-vault',
       name: 'azure-key-vault',
-      config: { vaultName },
+      config: { vaultName, endpoint },
     }
   } else if (backendType === 'azure-app-config') {
     const appConfigName =
@@ -429,33 +488,28 @@ export async function init(argv: Record<string, unknown>) {
     }
   }
 
-  const envFiles: EnvFile[] = selectedFiles.map(
-    (file: string | { value: string }) => {
-      const filePath = typeof file === 'string' ? file : file.value
-      const name = basename(filePath)
-      const extension = extname(filePath)
-      // Store only the relative path to the working directory
-      const relPath = relative(rootDir, filePath)
-      return {
-        name,
-        path: relPath,
-        extension,
-      }
-    },
-  )
+  const envFiles: EnvFile[] = selectedFiles.map((file: string | { value: string }) => {
+    const filePath = typeof file === 'string' ? file : file.value
+    const name = basename(filePath)
+    const extension = extname(filePath)
+    // Store only the relative path to the working directory
+    const relPath = relative(rootDir, filePath)
+    return {
+      name,
+      path: relPath,
+      extension,
+    }
+  })
 
   const mergeEnvFiles = await consola.prompt('Merge environment files?', {
     type: 'confirm',
     initial: false,
   })
 
-  const recursive = await consola.prompt(
-    'Enable recursive search for .env files?',
-    {
-      type: 'confirm',
-      initial: true,
-    },
-  )
+  const recursive = await consola.prompt('Enable recursive search for .env files?', {
+    type: 'confirm',
+    initial: true,
+  })
 
   let exclude: string[] = []
   const gitignorePath = join(rootDir, '.gitignore')
@@ -470,9 +524,7 @@ export async function init(argv: Record<string, unknown>) {
         initial: 'node_modules,.git,dist',
       },
     )
-    exclude = excludePatterns
-      .split(',')
-      .map((pattern: string) => pattern.trim())
+    exclude = excludePatterns.split(',').map((pattern: string) => pattern.trim())
   }
 
   const newConfig: EnvsyncConfig = {

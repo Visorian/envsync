@@ -1,9 +1,10 @@
 export interface Arguments {
   directory?: string
-  'backend-type'?: string
+  'backend-type'?: Extract<EnvsyncConfig['backend'], { type: string }>['type']
   'config-file'?: string
   overwrite?: boolean
   merge?: boolean
+  'remote-config'?: boolean
   'azure-storage-accountName'?: string
   'azure-storage-containerName'?: string
   'azure-key-vault-vaultName'?: string
@@ -21,6 +22,7 @@ export interface AzureStorageOptions {
 
 export interface AzureKeyVaultOptions {
   vaultName: string
+  endpoint: string
 }
 
 export interface AzureAppConfigOptions {
@@ -60,11 +62,7 @@ export interface EnvsyncConfig {
   mergeEnvFiles?: boolean
   recursive?: boolean
   exclude?: string[]
-  backend?:
-    | AzureStorageBackend
-    | AzureKeyVaultBackend
-    | AzureAppConfigBackend
-    | LocalBackend
+  backend?: AzureStorageBackend | AzureKeyVaultBackend | AzureAppConfigBackend | LocalBackend
   files?: EnvFile[]
 }
 
