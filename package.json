@@ -1,6 +1,6 @@
 {
   "name": "envsync",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "Sync .env files from remote storage.",
   "homepage": "https://github.com/visorian/envsync#readme",
@@ -28,6 +28,7 @@
   "devDependencies": {
     "@types/node": "^22.15.19",
     "@types/yargs": "^17.0.33",
+    "changelogen": "^0.6.1",
     "obuild": "^0.1.1",
     "oxlint": "^0.16.11",
     "typescript": "^5.8.3",
