@@ -1,6 +1,6 @@
 {
   "name": "envsync",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
   "description": "Sync .env files from remote storage.",
   "homepage": "https://github.com/visorian/envsync#readme",
