@@ -1,0 +1,33 @@
+{
+  "mergeEnvFiles": false,
+  "recursive": true,
+  "exclude": [
+    "node_modules",
+    "dist"
+  ],
+  "backend": {
+    "type": "azure-storage",
+    "name": "azure-storage",
+    "config": {
+      "accountName": "envsynctest",
+      "containerName": "envsync"
+    }
+  },
+  "files": [
+    {
+      "name": ".env",
+      "path": ".env",
+      "extension": ".env"
+    },
+    {
+      "name": ".env",
+      "path": "packages/app21/.env",
+      "extension": ".env"
+    },
+    {
+      "name": ".env",
+      "path": "packages/test/.env",
+      "extension": ".env"
+    }
+  ]
+}
