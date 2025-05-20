@@ -51,7 +51,11 @@ function isIgnoredByPatterns(relPath: string, patterns: string[]): boolean {
   return false
 }
 
-export async function findEnvFiles(dir: string, recursive = true): Promise<string[]> {
+export async function findEnvFiles(
+  dir: string,
+  recursive = true,
+  includeSuffixes = false,
+): Promise<string[]> {
   const gitignorePath = join(dir, '.gitignore')
   const gitignorePatterns = existsSync(gitignorePath) ? await parseGitignore(gitignorePath) : []
 
@@ -74,6 +78,10 @@ export async function findEnvFiles(dir: string, recursive = true): Promise<strin
         if (recursive) await walk(fullPath)
       } else if (entry.isFile() && basename(entry.name).startsWith('.env')) {
         if (gitignorePatterns.length && isIgnoredByPatterns(relPath, gitignorePatterns)) continue
+
+        const filename = basename(entry.name)
+        if (!includeSuffixes && filename !== '.env' && filename.includes('.', 4)) continue
+
         envFiles.push(fullPath)
       }
     }
@@ -194,7 +202,7 @@ export async function update(argv?: Arguments) {
   }
 }
 
-export async function clear(_argv: Record<string, unknown>) {
+export async function clear(_argv: Arguments) {
   const { config } = verifyConfig()
 
   consola.info(
@@ -229,7 +237,7 @@ export async function clear(_argv: Record<string, unknown>) {
   consola.success('All remote .env files deleted.')
 }
 
-export async function status(argv: Record<string, unknown>) {
+export async function status(argv: Arguments) {
   let storage: Storage<StorageValue>
   let config: EnvsyncConfig
   consola.start('Conecting to remote storage')
@@ -295,7 +303,7 @@ export async function status(argv: Record<string, unknown>) {
   }
 }
 
-export async function init(argv: Record<string, unknown>) {
+export async function init(argv: Arguments) {
   if (envsyncConfig) {
     const confirmOverwrite = await consola.prompt(
       'A configuration file already exists. Do you want to overwrite it?',
@@ -304,17 +312,16 @@ export async function init(argv: Record<string, unknown>) {
         initial: false,
       },
     )
-
     if (!confirmOverwrite) {
       consola.info('Initialization cancelled.')
       return
     }
   }
 
-  consola.start('Searching for .env files...')
+  consola.info('Searching for .env files...')
   const rootDir = process.cwd()
   consola.debug(`Searching for .env files in ${rootDir}`)
-  const foundFiles = await findEnvFiles(rootDir)
+  const foundFiles = await findEnvFiles(rootDir, true, argv['include-suffixes'])
 
   if (foundFiles.length === 0) {
     consola.info('No .env files found in the project.')
@@ -330,9 +337,22 @@ export async function init(argv: Record<string, unknown>) {
     type: 'multiselect',
     options: foundFiles.map((file) => ({ label: file, value: file })),
     initial: foundFiles,
+    cancel: 'symbol',
   })
 
-  if (selectedFiles.length === 0) {
+  if (selectedFiles === Symbol.for('cancel')) {
+    consola.info('Initialization cancelled.')
+    return
+  }
+
+  if (
+    (
+      selectedFiles as {
+        label: string
+        value: string
+      }[]
+    ).length === 0
+  ) {
     consola.info('No files selected. Initialization cancelled.')
     return
   }
@@ -430,7 +450,12 @@ export async function init(argv: Record<string, unknown>) {
     }
   }
 
-  const envFiles: EnvFile[] = selectedFiles.map((file: string | { value: string }) => {
+  const envFiles: EnvFile[] = (
+    selectedFiles as {
+      label: string
+      value: string
+    }[]
+  ).map((file: string | { value: string }) => {
     const filePath = typeof file === 'string' ? file : file.value
     const name = basename(filePath)
     const extension = extname(filePath)
@@ -480,7 +505,10 @@ export async function init(argv: Record<string, unknown>) {
   createEnvsyncConfig(newConfig)
 
   consola.info('Selected files:')
-  for (const file of selectedFiles) {
+  for (const file of selectedFiles as {
+    label: string
+    value: string
+  }[]) {
     const filePath = typeof file === 'string' ? file : file.value
     consola.info(`- ${filePath}`)
   }

@@ -136,7 +136,7 @@ export async function verifyArgs(argv: Arguments): Promise<{
 }
 
 export const consola = createConsola({
-  level: 4,
+  level: process.env.NODE_ENV === 'development' ? 4 : 3,
   fancy: true,
   formatOptions: {
     colors: true,

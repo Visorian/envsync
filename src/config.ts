@@ -8,6 +8,11 @@ import { consola } from './utils'
 const defaultConfig: EnvsyncConfig = {
   mergeEnvFiles: true,
   recursive: true,
+  includeSuffixes: false,
+  backend: {
+    name: 'unconfigured',
+    type: 'local',
+  },
 }
 
 export const { config, configFile, layers } = await loadConfig<EnvsyncConfig>({
@@ -31,11 +36,7 @@ export function verifyConfig(config: typeof envsyncConfig = envsyncConfig): {
 }
 export function createEnvsyncConfig(config: EnvsyncConfig, pwd?: string) {
   const configPath = path.join(pwd ?? process.cwd(), 'envsync.json')
-  writeFileSync(
-    configPath,
-    JSON.stringify(defu(config, defaultConfig), null, 2),
-    'utf8',
-  )
+  writeFileSync(configPath, JSON.stringify(defu(config, defaultConfig), null, 2), 'utf8')
   return config
 }
 

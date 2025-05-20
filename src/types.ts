@@ -4,6 +4,7 @@ export interface Arguments {
   'config-file'?: string
   overwrite?: boolean
   merge?: boolean
+  'include-suffixes'?: boolean
   'remote-config'?: boolean
   'azure-storage-accountName'?: string
   'azure-storage-containerName'?: string
@@ -61,6 +62,7 @@ export interface LocalBackend extends BaseBackendConfig {
 export interface EnvsyncConfig {
   mergeEnvFiles?: boolean
   recursive?: boolean
+  includeSuffixes?: boolean
   exclude?: string[]
   backend?: AzureStorageBackend | AzureKeyVaultBackend | AzureAppConfigBackend | LocalBackend
   files?: EnvFile[]

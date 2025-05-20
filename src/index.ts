@@ -48,6 +48,13 @@ const commonOptions = {
     description: 'Use configuration stored in remote location',
     demandOption: false,
   },
+  includeSuffixes: {
+    alias: 'i',
+    type: 'boolean',
+    description:
+      'Include .env files with suffixes like .env.sample, .env.template. Default false, these should better be managed with git.',
+    demandOption: false,
+  },
   'azure-storage-accountName': {
     type: 'string',
     description: 'Azure Storage Account Name',
@@ -122,7 +129,7 @@ async function runCli() {
       describe: 'Show the current status of environment variables relative to the backend',
       builder: (yargs) => yargs.options(commonOptions),
       handler: async (argv) => {
-        await status(argv)
+        await status(argv as Arguments)
       },
     })
     .command({
@@ -130,12 +137,13 @@ async function runCli() {
       describe: 'Initialize a new environment sync configuration',
       builder: (yargs) => yargs.options(commonOptions),
       handler: async (argv) => {
-        await init(argv)
+        await init(argv as Arguments)
       },
     })
     .command({
       command: 'update',
-      describe: 'Update an existing environment sync configuration',
+      describe:
+        'Updates the content of the configured .env files in the remote location from the current content on disk',
       builder: (yargs) => yargs.options(commonOptions),
       handler: async (argv) => {
         if (verifyConfig().valid) {
@@ -149,7 +157,7 @@ async function runCli() {
       builder: (yargs) => yargs.options(commonOptions),
       handler: async (argv) => {
         if (verifyConfig().valid) {
-          await clear(argv)
+          await clear(argv as Arguments)
         }
       },
     })
@@ -158,22 +166,6 @@ async function runCli() {
       describe: 'Manage envsync configuration',
       builder: (yargs) => yargs, // No options for config command, return yargs directly
       handler: async () => {
-        verifyConfig()
-        if (!envsyncConfig) {
-          consola.info('No configuration found.')
-          const createNew = await consola.prompt('Would you like to create a new configuration?', {
-            type: 'confirm',
-            initial: true,
-          })
-
-          if (createNew) {
-            // Redirect to init command
-            console.log('Redirecting to init command...')
-            // This is a simplification - in a real app you'd reuse the init command
-            await yargs.parse(['init'])
-          }
-          return
-        }
         consola.info('Current configuration:')
         console.log(JSON.stringify(envsyncConfig, null, 2))
       },
