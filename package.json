@@ -6,6 +6,7 @@
   "homepage": "https://github.com/visorian/envsync#readme",
   "repository": "visorian/envsync",
   "type": "module",
+  "bin": "dist/index.mjs",
   "exports": {
     ".": "./dist/index.mjs"
   },
