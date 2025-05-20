@@ -15,7 +15,6 @@ import type {
   AzureStorageBackend,
   EnvFile,
   EnvsyncConfig,
-  LocalBackend,
 } from './types'
 import { consola, initializeStorage, verifyArgs } from './utils'
 
@@ -363,7 +362,7 @@ export async function rescan(argv: Arguments) {
     files: envFiles,
   }
 
-  createEnvsyncConfig(newConfig)
+  await createEnvsyncConfig(newConfig)
 
   consola.info('Selected files:')
   const fileList = envFiles
@@ -468,7 +467,28 @@ export async function status(argv: Arguments) {
 }
 
 export async function init(argv: Arguments) {
-  if (envsyncConfig) {
+  let storage: Storage<StorageValue>
+  let config: EnvsyncConfig = {}
+  consola.start('Connecting to remote storage')
+  try {
+    const result = await verifyArgs(argv, true)
+    storage = result.storage
+    config = result.config
+  } catch (error: unknown) {
+    // @ts-expect-error
+    if (error.cause !== 'internal') {
+      // @ts-expect-error
+      consola.debug('Name:', error.name, 'Details:', error.details)
+      consola.error('Failed to connect to remote storage')
+    }
+    // @ts-expect-error
+    if (error.message === 'No configuration found at remote') {
+      consola.warn('No configuration found at remote')
+    } else {
+      process.exit(1)
+    }
+  }
+  if (Object.keys(config).length > 0) {
     const confirmOverwrite = await consola.prompt(
       'A configuration file already exists. Do you want to overwrite it?',
       {
@@ -528,97 +548,101 @@ export async function init(argv: Arguments) {
 
   consola.success('File search complete.')
 
-  const backendType = await consola.prompt('Select backend type:', {
-    type: 'select',
-    options: [
-      { label: 'Local', value: 'local' },
-      { label: 'Azure Storage', value: 'azure-storage' },
-      { label: 'Azure Key Vault', value: 'azure-key-vault' },
-      { label: 'Azure App Configuration', value: 'azure-app-config' },
-    ],
-    initial: 'local',
-  })
+  const backendType =
+    (argv['backend-type'] as string) ||
+    (await consola.prompt('Select backend type:', {
+      type: 'select',
+      options: [
+        { label: 'Azure Storage', value: 'azure-storage' },
+        { label: 'Azure Key Vault', value: 'azure-key-vault' },
+        { label: 'Azure App Configuration', value: 'azure-app-config' },
+      ],
+      initial: 'local',
+    }))
 
-  let backend: AzureStorageBackend | AzureKeyVaultBackend | AzureAppConfigBackend | LocalBackend
+  let backend: AzureStorageBackend | AzureKeyVaultBackend | AzureAppConfigBackend | undefined
 
-  if (backendType === 'azure-storage') {
-    const accountName =
-      (argv['azure-storage-accountName'] as string) ||
-      (await consola.prompt('Azure Storage Account Name:', {
-        type: 'text',
-      }))
-    const containerName =
-      (argv['azure-storage-containerName'] as string) ||
-      (await consola.prompt('Azure Storage Container Name:', {
-        type: 'text',
-      }))
-    backend = {
-      type: 'azure-storage',
-      name: 'azure-storage',
-      config: { accountName, containerName },
+  switch (backendType) {
+    case 'azure-storage': {
+      const accountName =
+        (argv['azure-storage-accountName'] as string) ||
+        (await consola.prompt('Azure Storage Account Name:', {
+          type: 'text',
+        }))
+      const containerName =
+        (argv['azure-storage-containerName'] as string) ||
+        (await consola.prompt('Azure Storage Container Name:', {
+          type: 'text',
+        }))
+      backend = {
+        type: 'azure-storage',
+        name: 'azure-storage',
+        config: { accountName, containerName },
+      }
+      break
     }
-  } else if (backendType === 'azure-key-vault') {
-    const vaultName =
-      (argv['azure-key-vault-vaultName'] as string) ||
-      (await consola.prompt('Azure Key Vault Name:', {
-        type: 'text',
-      }))
-    const endpoint =
-      (argv['azure-key-vault-endpoint'] as string) ||
-      (await consola.prompt('Azure Key Vault Endpoint:', {
-        type: 'text',
-      }))
-    backend = {
-      type: 'azure-key-vault',
-      name: 'azure-key-vault',
-      config: { vaultName, endpoint },
+    case 'azure-key-vault': {
+      const vaultName =
+        (argv['azure-key-vault-vaultName'] as string) ||
+        (await consola.prompt('Azure Key Vault Name:', {
+          type: 'text',
+        }))
+      const endpoint =
+        (argv['azure-key-vault-endpoint'] as string) ||
+        (await consola.prompt('Azure Key Vault Endpoint:', {
+          type: 'text',
+        }))
+      backend = {
+        type: 'azure-key-vault',
+        name: 'azure-key-vault',
+        config: { vaultName, endpoint },
+      }
+      break
     }
-  } else if (backendType === 'azure-app-config') {
-    const appConfigName =
-      (argv['azure-app-config-appConfigName'] as string) ||
-      (await consola.prompt('Azure App Configuration Name:', {
-        type: 'text',
-      }))
-    const endpoint =
-      (argv['azure-app-config-endpoint'] as string) ||
-      (await consola.prompt('Azure App Configuration Endpoint:', {
-        type: 'text',
-      }))
-    const prefix =
-      (argv['azure-app-config-prefix'] as string) ||
-      (await consola.prompt('Azure App Configuration Key Prefix (optional):', {
-        type: 'text',
-        initial: '',
-      }))
-    const label =
-      (argv['azure-app-config-label'] as string) ||
-      (await consola.prompt('Azure App Configuration Label (optional):', {
-        type: 'text',
-        initial: '',
-      }))
+    case 'azure-app-config': {
+      const appConfigName =
+        (argv['azure-app-config-appConfigName'] as string) ||
+        (await consola.prompt('Azure App Configuration Name:', {
+          type: 'text',
+        }))
+      const endpoint =
+        (argv['azure-app-config-endpoint'] as string) ||
+        (await consola.prompt('Azure App Configuration Endpoint:', {
+          type: 'text',
+        }))
+      const prefix =
+        (argv['azure-app-config-prefix'] as string) ||
+        (await consola.prompt('Azure App Configuration Key Prefix (optional):', {
+          type: 'text',
+          initial: '',
+        }))
+      const label =
+        (argv['azure-app-config-label'] as string) ||
+        (await consola.prompt('Azure App Configuration Label (optional):', {
+          type: 'text',
+          initial: '',
+        }))
 
-    const config: {
-      appConfigName: string
-      endpoint: string
-      prefix?: string
-      label?: string
-    } = { appConfigName, endpoint }
-    if (prefix) config.prefix = prefix
-    if (label) config.label = label
+      const config: {
+        appConfigName: string
+        endpoint: string
+        prefix?: string
+        label?: string
+      } = { appConfigName, endpoint }
+      if (prefix) config.prefix = prefix
+      if (label) config.label = label
 
-    backend = {
-      type: 'azure-app-config',
-      name: 'azure-app-config',
-      config,
+      backend = {
+        type: 'azure-app-config',
+        name: 'azure-app-config',
+        config,
+      }
+      break
     }
-  } else {
-    backend = {
-      type: 'local',
-      name: 'local',
-      config: {},
+    default: {
+      backend = undefined
     }
   }
-
   const envFiles: EnvFile[] = (
     selectedFiles as {
       label: string
@@ -670,10 +694,17 @@ export async function init(argv: Arguments) {
     backend,
     files: envFiles,
   }
+  // @ts-expect-error typescript doesn't understand init property
+  if (argv['remote-config'] && storage) {
+    await createEnvsyncConfig(newConfig, {
+      remote: true,
+      storage: storage as Storage,
+    })
+  } else {
+    createEnvsyncConfig(newConfig)
+  }
 
-  createEnvsyncConfig(newConfig)
-
-  consola.info('Selected files:')
+  consola.info('Configured .env files:')
   const fileList = envFiles
     .map((file) => {
       return `- ${withLeadingSlash(file.path)}`

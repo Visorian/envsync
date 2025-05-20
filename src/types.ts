@@ -1,3 +1,10 @@
+import type { Storage } from 'unstorage'
+
+export interface CreateEnvsyncConfigOptions {
+  pwd?: string
+  remote?: boolean
+  storage?: Storage
+}
 export interface Arguments {
   directory?: string
   'backend-type'?: Extract<EnvsyncConfig['backend'], { type: string }>['type']

@@ -47,7 +47,10 @@ export async function initializeStorage(config: EnvsyncConfig) {
   }
 }
 
-export async function verifyArgs(argv: Arguments): Promise<{
+export async function verifyArgs(
+  argv: Arguments,
+  init = false,
+): Promise<{
   storage: Storage<StorageValue>
   config: EnvsyncConfig
 }> {
@@ -123,8 +126,11 @@ export async function verifyArgs(argv: Arguments): Promise<{
     if (hasConfig) {
       config = destr(await storage.getItem('envsync.json'))
     } else {
-      consola.error('No configuration found at remote')
-      throw new Error('No configuration found at remote', { cause: 'internal' })
+      if (!init) {
+        consola.error('No configuration found at remote')
+        throw new Error('No configuration found at remote', { cause: 'internal' })
+      }
+      config = {}
     }
   } else {
     if (verifyConfig().valid) {

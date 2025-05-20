@@ -1,8 +1,10 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { loadConfig } from 'c12'
 import defu from 'defu'
-import type { EnvsyncConfig } from './types'
+import type { CreateEnvsyncConfigOptions, EnvsyncConfig } from './types'
+import { consola } from './utils'
 
 export const defaultConfig: Required<EnvsyncConfig> = {
   mergeEnvFiles: true,
@@ -35,13 +37,25 @@ export function verifyConfig(config: typeof envsyncConfig = envsyncConfig): {
   return { config, valid: true }
 }
 
-export function createEnvsyncConfig(config: EnvsyncConfig, pwd?: string) {
-  const configPath = path.join(pwd ?? process.cwd(), 'envsync.json')
-  writeFileSync(configPath, JSON.stringify(defu(config, defaultConfig), null, 2), 'utf8')
-  return config
+export async function createEnvsyncConfig(
+  config: EnvsyncConfig,
+  options?: CreateEnvsyncConfigOptions,
+) {
+  if (options?.remote) {
+    try {
+      await options.storage?.setItem('envsync.json', config)
+      consola.success('Updated remote: envsync.json')
+    } catch (error) {
+      consola.error('Failed to write envsync.json')
+      process.exit(1)
+    }
+  } else {
+    const configPath = path.join(options?.pwd ?? process.cwd(), 'envsync.json')
+    writeFile(configPath, JSON.stringify(defu(config, defaultConfig), null, 2), 'utf8')
+  }
 }
 
-export function updateEnvsyncConfig(
+export async function updateEnvsyncConfig(
   patch: Partial<EnvsyncConfig>,
   options: {
     configFile?: string
@@ -64,6 +78,6 @@ export function updateEnvsyncConfig(
 
   const merged = defu(patch, existing)
 
-  writeFileSync(configPath, JSON.stringify(merged, null, 2))
+  await writeFile(configPath, JSON.stringify(merged, null, 2))
   return merged
 }
