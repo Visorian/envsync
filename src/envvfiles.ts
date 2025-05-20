@@ -181,15 +181,16 @@ export async function sync(argv: Arguments) {
   }
 }
 
-export async function update(argv?: Arguments) {
+export async function update(argv: Arguments) {
   const { overwrite } = argv ?? {}
-  const { config } = verifyConfig()
-
-  consola.info(`Running update with backend ${config.backend?.name} (${config.backend?.type})...`)
 
   let storage: Storage<StorageValue>
+  let config: EnvsyncConfig
+  consola.start('Connecting to remote storage')
   try {
-    storage = await initializeStorage(config)
+    const result = await verifyArgs(argv)
+    storage = result.storage
+    config = result.config
   } catch (error: unknown) {
     // @ts-expect-error
     if (error.cause !== 'internal') {
@@ -199,6 +200,8 @@ export async function update(argv?: Arguments) {
     }
     process.exit(1)
   }
+
+  consola.info(`Running update with backend ${config.backend?.name} (${config.backend?.type})...`)
 
   const files = config.files || []
 
@@ -414,7 +417,9 @@ export async function status(argv: Arguments) {
     try {
       const hasRemote = await storage.hasItem(remoteKey)
       if (!hasRemote) {
-        consola.warn(`Remote file not found for: ${localPath}`)
+        consola.warn(
+          `Remote file not found for: ${localPath}. Please run envsync update to initialize it.`,
+        )
         continue
       }
     } catch (error) {

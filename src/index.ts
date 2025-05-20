@@ -149,9 +149,7 @@ async function runCli() {
         'Updates the content of the configured .env files in the remote location from the current content on disk',
       builder: (yargs) => yargs.options(commonOptions),
       handler: async (argv) => {
-        if (verifyConfig().valid) {
-          update(argv as Arguments)
-        }
+        await update(argv as Arguments)
       },
     })
     .command({
