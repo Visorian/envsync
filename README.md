@@ -64,9 +64,9 @@ Is not synced
 ## Install
 
 ```bash
-pnpm add -D envsync
+pnpm add -D @visorian/envsync
 or
-pnpm add -g envsync
+pnpm add -g @visorian/envsync
 ```
 
 ---
@@ -74,7 +74,7 @@ pnpm add -g envsync
 ## Usage
 
 ```sh
-pnpm exec envsync <command> [options]
+pnpm exec @visorian/envsync <command> [options]
 ```
 
 ## Configless (remote configuration)
