@@ -1,6 +1,25 @@
 # Changelog
 
 
+## v0.5.0
+
+[compare changes](https://github.com/visorian/envsync/compare/v0.4.0...v0.5.0)
+
+### 🚀 Enhancements
+
+- Added error handling for authentication issues ([e88c100](https://github.com/visorian/envsync/commit/e88c100))
+- Added remote-config feature to init function ([a76f35a](https://github.com/visorian/envsync/commit/a76f35a))
+- Added support for remote-config to update function ([a5f6f12](https://github.com/visorian/envsync/commit/a5f6f12))
+
+### 🩹 Fixes
+
+- .gitignore content is no longer used as include option by default ([c39eae5](https://github.com/visorian/envsync/commit/c39eae5))
+- Extended error handling, fixed hide-logo parameter ([ab2cde8](https://github.com/visorian/envsync/commit/ab2cde8))
+
+### ❤️ Contributors
+
+- Jan-Henrik Damaschke ([@itpropro](https://github.com/itpropro))
+
 ## v0.4.0
 
 [compare changes](https://github.com/visorian/envsync/compare/v0.3.0...v0.4.0)
