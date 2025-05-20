@@ -7,7 +7,8 @@
 
 > *Did you receive the .env file I shared in Discord?*
 
-**envsync** helps you keep your `.env` files in sync across local and remote backends (local, Azure Storage, Azure Key Vault, Azure App Configuration). It provides a simple CLI to initialize, sync, update, check status, and clear environment files for your project.
+Never have out-of-date .env files for your projects or your team. **envsync** helps you syncing your `.env` files using remote backends (Azure Storage, Azure Key Vault, Azure App Configuration) and eliminates the need to send `.env` files via Discord, email or other channels. It provides a simple CLI to initialize, sync, update, check status, and clear environment files for your project.
+Just initialize your .env files, update them at the remote if they change and let everyone who works with the project run `envsync sync` to get the most recent changes.
 
 ---
 
@@ -23,6 +24,7 @@
 - [x] Support for remote configuration/configurationless
 - [ ] Support more storage providers
 - [ ] Support remote encryption at rest
+- [ ] Provide commandline switches to sync if out of date
 
 ---
 
