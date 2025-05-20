@@ -6,7 +6,7 @@ process.once('SIGINT', () => {
 
 import yargs from 'yargs'
 import { envsyncConfig, verifyConfig } from './config'
-import { clear, init, status, sync, update } from './envvfiles'
+import { clear, init, rescan, status, sync, update } from './envvfiles'
 import type { Arguments } from './types'
 import { consola } from './utils'
 
@@ -158,6 +158,16 @@ async function runCli() {
       handler: async (argv) => {
         if (verifyConfig().valid) {
           await clear(argv as Arguments)
+        }
+      },
+    })
+    .command({
+      command: 'rescan',
+      describe: 'Rescan for .env files and update configuration',
+      builder: (yargs) => yargs.options(commonOptions),
+      handler: async (argv) => {
+        if (verifyConfig().valid) {
+          await rescan(argv as Arguments)
         }
       },
     })

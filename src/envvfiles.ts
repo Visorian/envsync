@@ -123,7 +123,7 @@ export async function sync(argv: Arguments) {
         encoding: 'utf-8',
       })
     } catch {
-      consola.info(`Local file missing: ${localPath}`)
+      consola.debug(`Local file missing: ${localPath}`)
     }
 
     const remoteContent = await storage.getItem(remoteKey)
@@ -193,7 +193,7 @@ export async function update(argv?: Arguments) {
         consola.info(`Local file is empty: ${localPath}. Remote will be cleared.`)
       }
     } catch {
-      consola.info(`Local file missing: ${localPath}`)
+      consola.debug(`Local file missing: ${localPath}`)
       continue
     }
 
@@ -237,6 +237,83 @@ export async function clear(_argv: Arguments) {
   consola.success('All remote .env files deleted.')
 }
 
+export async function rescan(argv: Arguments) {
+  const { config } = verifyConfig()
+
+  consola.start('Searching for .env files...')
+  const rootDir = process.cwd()
+  consola.debug(`Searching for .env files in ${rootDir}`)
+  const foundFiles = await findEnvFiles(rootDir, !!config.recursive, argv['include-suffixes'])
+
+  if (foundFiles.length === 0) {
+    consola.info('No .env files found in the project.')
+    return
+  }
+
+  consola.debug('Found the following .env files:')
+  for (const file of foundFiles) {
+    consola.debug(`- ${file}`)
+  }
+
+  const selectedFiles = await consola.prompt('Select .env files to add to config:', {
+    type: 'multiselect',
+    options: foundFiles.map((file) => ({ label: file, value: file })),
+    initial: foundFiles,
+    cancel: 'symbol',
+  })
+
+  if (selectedFiles === Symbol.for('cancel')) {
+    consola.info('Initialization cancelled.')
+    return
+  }
+
+  if (
+    (
+      selectedFiles as {
+        label: string
+        value: string
+      }[]
+    ).length === 0
+  ) {
+    consola.info('No files selected. Rescan cancelled.')
+    return
+  }
+
+  const envFiles: EnvFile[] = (
+    selectedFiles as {
+      label: string
+      value: string
+    }[]
+  ).map((file: string | { value: string }) => {
+    const filePath = typeof file === 'string' ? file : file.value
+    const name = basename(filePath)
+    const extension = extname(filePath)
+    const relPath = relative(rootDir, filePath)
+    return {
+      name,
+      path: relPath,
+      extension,
+    }
+  })
+
+  const newConfig: EnvsyncConfig = {
+    ...config,
+    files: envFiles,
+  }
+
+  createEnvsyncConfig(newConfig)
+
+  consola.info('Selected files:')
+  const fileList = envFiles
+    .map((file) => {
+      return `- ${withLeadingSlash(file.path)}`
+    })
+    .join('\n')
+  consola.box(fileList)
+
+  consola.success('Rescan complete!')
+}
+
 export async function status(argv: Arguments) {
   let storage: Storage<StorageValue>
   let config: EnvsyncConfig
@@ -251,6 +328,14 @@ export async function status(argv: Arguments) {
   consola.start(
     `Running status with backend ${config.backend?.name} (${config.backend?.type})...\n`,
   )
+
+  consola.info('Configured files:')
+  const fileList = (config.files as EnvFile[])
+    .map((file) => {
+      return `- ${withLeadingSlash(file.path)}`
+    })
+    .join('\n')
+  consola.box(fileList)
 
   const files = config.files || []
   let updateNeeded = false
@@ -269,7 +354,7 @@ export async function status(argv: Arguments) {
     try {
       localContent = await readFile(file.path, 'utf8')
     } catch {
-      consola.info(`Local file missing: ${localPath}`)
+      consola.debug(`Local file missing: ${localPath}`)
       continue
     }
 
@@ -470,7 +555,7 @@ export async function init(argv: Arguments) {
 
   const mergeEnvFiles = await consola.prompt('Merge environment files?', {
     type: 'confirm',
-    initial: false,
+    initial: true,
   })
 
   const recursive = await consola.prompt('Enable recursive search for .env files?', {
@@ -482,7 +567,6 @@ export async function init(argv: Arguments) {
   const gitignorePath = join(rootDir, '.gitignore')
   if (existsSync(gitignorePath)) {
     exclude = await parseGitignore(gitignorePath)
-    consola.info('Using patterns from .gitignore for exclusions.')
   } else {
     const excludePatterns = await consola.prompt(
       'Enter patterns to exclude (comma separated, e.g., node_modules,.git):',
@@ -505,13 +589,12 @@ export async function init(argv: Arguments) {
   createEnvsyncConfig(newConfig)
 
   consola.info('Selected files:')
-  for (const file of selectedFiles as {
-    label: string
-    value: string
-  }[]) {
-    const filePath = typeof file === 'string' ? file : file.value
-    consola.info(`- ${filePath}`)
-  }
+  const fileList = envFiles
+    .map((file) => {
+      return `- ${withLeadingSlash(file.path)}`
+    })
+    .join('\n')
+  consola.box(fileList)
 
   consola.success('Initialization complete!')
 }
