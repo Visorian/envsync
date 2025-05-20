@@ -7,7 +7,7 @@ import { basename, dirname, extname, join, matchesGlob, relative } from 'pathe'
 import { parse, serialize } from 'rc9'
 import { withLeadingSlash } from 'ufo'
 import type { Storage, StorageValue } from 'unstorage'
-import { createEnvsyncConfig, envsyncConfig, verifyConfig } from './config'
+import { createEnvsyncConfig, defaultConfig, envsyncConfig, verifyConfig } from './config'
 import type {
   Arguments,
   AzureAppConfigBackend,
@@ -53,11 +53,14 @@ function isIgnoredByPatterns(relPath: string, patterns: string[]): boolean {
 
 export async function findEnvFiles(
   dir: string,
+  ignorePatterns: string[],
   recursive = true,
   includeSuffixes = false,
 ): Promise<string[]> {
   const gitignorePath = join(dir, '.gitignore')
-  const gitignorePatterns = existsSync(gitignorePath) ? await parseGitignore(gitignorePath) : []
+  const gitignorePatterns = existsSync(gitignorePath)
+    ? await parseGitignore(gitignorePath)
+    : ignorePatterns
 
   const envFiles: string[] = []
 
@@ -243,7 +246,12 @@ export async function rescan(argv: Arguments) {
   consola.start('Searching for .env files...')
   const rootDir = process.cwd()
   consola.debug(`Searching for .env files in ${rootDir}`)
-  const foundFiles = await findEnvFiles(rootDir, !!config.recursive, argv['include-suffixes'])
+  const foundFiles = await findEnvFiles(
+    rootDir,
+    config.exclude || defaultConfig.exclude,
+    !!config.recursive,
+    argv['include-suffixes'],
+  )
 
   if (foundFiles.length === 0) {
     consola.info('No .env files found in the project.')
@@ -406,7 +414,12 @@ export async function init(argv: Arguments) {
   consola.info('Searching for .env files...')
   const rootDir = process.cwd()
   consola.debug(`Searching for .env files in ${rootDir}`)
-  const foundFiles = await findEnvFiles(rootDir, true, argv['include-suffixes'])
+  const foundFiles = await findEnvFiles(
+    rootDir,
+    defaultConfig.exclude,
+    true,
+    argv['include-suffixes'],
+  )
 
   if (foundFiles.length === 0) {
     consola.info('No .env files found in the project.')
@@ -566,7 +579,8 @@ export async function init(argv: Arguments) {
   let exclude: string[] = []
   const gitignorePath = join(rootDir, '.gitignore')
   if (existsSync(gitignorePath)) {
-    exclude = await parseGitignore(gitignorePath)
+    consola.debug(`Found .gitignore file at ${gitignorePath}`)
+    // exclude = await parseGitignore(gitignorePath)
   } else {
     const excludePatterns = await consola.prompt(
       'Enter patterns to exclude (comma separated, e.g., node_modules,.git):',

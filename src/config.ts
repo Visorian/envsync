@@ -5,7 +5,7 @@ import defu from 'defu'
 import type { EnvsyncConfig } from './types'
 import { consola } from './utils'
 
-const defaultConfig: EnvsyncConfig = {
+export const defaultConfig: Required<EnvsyncConfig> = {
   mergeEnvFiles: true,
   recursive: true,
   includeSuffixes: false,
@@ -13,6 +13,8 @@ const defaultConfig: EnvsyncConfig = {
     name: 'unconfigured',
     type: 'local',
   },
+  exclude: ['.git', 'node_modules', 'dist'],
+  files: [],
 }
 
 export const { config, configFile, layers } = await loadConfig<EnvsyncConfig>({
@@ -34,6 +36,7 @@ export function verifyConfig(config: typeof envsyncConfig = envsyncConfig): {
   }
   return { config, valid: true }
 }
+
 export function createEnvsyncConfig(config: EnvsyncConfig, pwd?: string) {
   const configPath = path.join(pwd ?? process.cwd(), 'envsync.json')
   writeFileSync(configPath, JSON.stringify(defu(config, defaultConfig), null, 2), 'utf8')
