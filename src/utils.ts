@@ -8,6 +8,7 @@ export async function initializeStorage(config: EnvsyncConfig) {
   const { backend } = config
   switch (backend?.type) {
     case 'azure-storage': {
+      consola.debug('Initializing azure blob storage driver')
       const azureStorageBlobDriver = (await import('unstorage/drivers/azure-storage-blob')).default
       return createStorage({
         driver: azureStorageBlobDriver({
@@ -17,6 +18,7 @@ export async function initializeStorage(config: EnvsyncConfig) {
       })
     }
     case 'azure-key-vault': {
+      console.debug('Initializing azure key vault driver')
       const azureKeyVault = (await import('unstorage/drivers/azure-key-vault')).default
       return createStorage({
         driver: azureKeyVault({
@@ -25,6 +27,7 @@ export async function initializeStorage(config: EnvsyncConfig) {
       })
     }
     case 'azure-app-config': {
+      console.debug('Initializing azure app config driver')
       const azureAppConfiguration = (await import('unstorage/drivers/azure-app-configuration'))
         .default
       return createStorage({

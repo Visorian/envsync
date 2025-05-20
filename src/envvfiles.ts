@@ -97,12 +97,15 @@ export async function findEnvFiles(
 export async function sync(argv: Arguments) {
   let storage: Storage<StorageValue>
   let config: EnvsyncConfig
-  consola.start('Conecting to remote storage')
+  consola.start('Connecting to remote storage')
   try {
     const result = await verifyArgs(argv)
     storage = result.storage
     config = result.config
   } catch (error) {
+    // @ts-expect-error
+    consola.debug('Name:', error.name, 'Details:', error.details)
+    consola.error('Failed to connect to remote storage')
     process.exit(1)
   }
   consola.start(`Running sync with backend ${config.backend?.name} (${config.backend?.type})...\n`)
@@ -114,10 +117,16 @@ export async function sync(argv: Arguments) {
     const localPath = withLeadingSlash(file.path)
     const localFileExists = existsSync(file.path)
 
-    const hasRemote = await storage.hasItem(remoteKey)
-    if (!hasRemote) {
-      consola.warn(`Remote file not found for: ${localPath}`)
-      continue
+    let hasRemote: boolean
+    try {
+      hasRemote = await storage.hasItem(remoteKey)
+      if (!hasRemote) {
+        consola.warn(`Remote file not found for: ${localPath}`)
+        continue
+      }
+    } catch (error) {
+      consola.error(`Failed to connect to remote storage for: ${localPath}`)
+      process.exit(1)
     }
 
     let localContent = ''
@@ -129,10 +138,16 @@ export async function sync(argv: Arguments) {
       consola.debug(`Local file missing: ${localPath}`)
     }
 
-    const remoteContent = await storage.getItem(remoteKey)
-    if (remoteContent == null) {
-      consola.warn(`Remote file could not be read: ${remoteKey}`)
-      continue
+    let remoteContent: StorageValue
+    try {
+      remoteContent = await storage.getItem(remoteKey)
+      if (remoteContent == null) {
+        consola.warn(`Remote file could not be read: ${remoteKey}`)
+        continue
+      }
+    } catch (error) {
+      consola.error(`Failed to connect to remote storage for: ${localPath}`)
+      process.exit(1)
     }
 
     const localHash = hash(localContent)
@@ -166,15 +181,28 @@ export async function update(argv?: Arguments) {
   const { config } = verifyConfig()
 
   consola.info(`Running update with backend ${config.backend?.name} (${config.backend?.type})...`)
-
-  const storage = await initializeStorage(config)
+  let storage: Storage<StorageValue>
+  try {
+    storage = await initializeStorage(config)
+  } catch (error) {
+    // @ts-expect-error
+    consola.debug('Name:', error.name, 'Details:', error.details)
+    consola.error('Failed to connect to remote storage')
+    process.exit(1)
+  }
   const files = config.files || []
 
   for (const file of files) {
     const localPath = withLeadingSlash(file.path)
     const remoteKey = hash(withLeadingSlash(file.path))
 
-    const hasRemote = await storage.hasItem(remoteKey)
+    let hasRemote: boolean
+    try {
+      hasRemote = await storage.hasItem(remoteKey)
+    } catch (error) {
+      consola.error(`Failed to connect to remote storage for: ${localPath}`)
+      process.exit(1)
+    }
     let shouldUpdate = true
 
     if (hasRemote && !overwrite) {
@@ -200,8 +228,12 @@ export async function update(argv?: Arguments) {
       continue
     }
 
-    await storage.setItem(remoteKey, localContent)
-    consola.success(`Updated remote: ${localPath}`)
+    try {
+      await storage.setItem(remoteKey, localContent)
+      consola.success(`Updated remote: ${localPath}`)
+    } catch (error) {
+      consola.error(`Failed to write .env file: ${localPath}`)
+    }
   }
 }
 
@@ -325,12 +357,16 @@ export async function rescan(argv: Arguments) {
 export async function status(argv: Arguments) {
   let storage: Storage<StorageValue>
   let config: EnvsyncConfig
-  consola.start('Conecting to remote storage')
+  consola.start('Connecting to remote storage')
   try {
     const result = await verifyArgs(argv)
+    console.debug('After storage')
     storage = result.storage
     config = result.config
   } catch (error) {
+    // @ts-expect-error
+    consola.debug('Name:', error.name, 'Details:', error.details)
+    consola.error('Failed to connect to remote storage')
     process.exit(1)
   }
   consola.start(
@@ -352,10 +388,15 @@ export async function status(argv: Arguments) {
     const remoteKey = hash(withLeadingSlash(file.path))
     const localPath = withLeadingSlash(file.path)
 
-    const hasRemote = await storage.hasItem(remoteKey)
-    if (!hasRemote) {
-      consola.warn(`Remote file not found for: ${localPath}`)
-      continue
+    try {
+      const hasRemote = await storage.hasItem(remoteKey)
+      if (!hasRemote) {
+        consola.warn(`Remote file not found for: ${localPath}`)
+        continue
+      }
+    } catch (error) {
+      consola.error(`Failed to connect to remote storage for: ${localPath}`)
+      process.exit(1)
     }
 
     let localContent = ''
@@ -366,10 +407,16 @@ export async function status(argv: Arguments) {
       continue
     }
 
-    const remoteContent = await storage.getItem(remoteKey)
-    if (remoteContent == null) {
-      consola.warn(`Remote file could not be read: ${remoteKey}`)
-      continue
+    let remoteContent: StorageValue
+    try {
+      remoteContent = await storage.getItem(remoteKey)
+      if (remoteContent == null) {
+        consola.warn(`Remote file could not be read: ${remoteKey}`)
+        continue
+      }
+    } catch (error) {
+      consola.error(`Failed to connect to remote storage for: ${localPath}`)
+      process.exit(1)
     }
 
     const localHash = hash(localContent)
