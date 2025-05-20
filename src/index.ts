@@ -103,15 +103,18 @@ const logo = `
 async function runCli() {
   yargs(process.argv.slice(2))
     .scriptName('envsync')
-    .option('no-logo', {
-      alias: 'l',
-      type: 'boolean',
-      description: 'Suppress ASCII logo on startup',
-      default: false,
+    .options({
+      'hide-logo': {
+        alias: 'l',
+        demandOption: false,
+        type: 'boolean',
+        describe: 'Suppress ASCII logo on startup',
+        default: false,
+      },
     })
     // Middleware runs once immediately after parse, before commands/help
     .middleware((argv) => {
-      if (!argv.noLogo) {
+      if (!argv.hideLogo) {
         console.log(logo)
       }
     })

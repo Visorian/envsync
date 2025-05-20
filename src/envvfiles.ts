@@ -97,17 +97,23 @@ export async function findEnvFiles(
 export async function sync(argv: Arguments) {
   let storage: Storage<StorageValue>
   let config: EnvsyncConfig
+
   consola.start('Connecting to remote storage')
+
   try {
     const result = await verifyArgs(argv)
     storage = result.storage
     config = result.config
-  } catch (error) {
+  } catch (error: unknown) {
     // @ts-expect-error
-    consola.debug('Name:', error.name, 'Details:', error.details)
-    consola.error('Failed to connect to remote storage')
+    if (error.cause !== 'internal') {
+      // @ts-expect-error
+      consola.debug('Name:', error.name, 'Details:', error.details)
+      consola.error('Failed to connect to remote storage')
+    }
     process.exit(1)
   }
+
   consola.start(`Running sync with backend ${config.backend?.name} (${config.backend?.type})...\n`)
 
   const files = config.files || []
@@ -181,15 +187,20 @@ export async function update(argv?: Arguments) {
   const { config } = verifyConfig()
 
   consola.info(`Running update with backend ${config.backend?.name} (${config.backend?.type})...`)
+
   let storage: Storage<StorageValue>
   try {
     storage = await initializeStorage(config)
-  } catch (error) {
+  } catch (error: unknown) {
     // @ts-expect-error
-    consola.debug('Name:', error.name, 'Details:', error.details)
-    consola.error('Failed to connect to remote storage')
+    if (error.cause !== 'internal') {
+      // @ts-expect-error
+      consola.debug('Name:', error.name, 'Details:', error.details)
+      consola.error('Failed to connect to remote storage')
+    }
     process.exit(1)
   }
+
   const files = config.files || []
 
   for (const file of files) {
@@ -244,7 +255,18 @@ export async function clear(_argv: Arguments) {
     `Running update with backend ${envsyncConfig?.backend?.name} (${envsyncConfig?.backend?.type})...`,
   )
 
-  const storage = await initializeStorage(config)
+  let storage: Storage<StorageValue>
+  try {
+    storage = await initializeStorage(config)
+  } catch (error: unknown) {
+    // @ts-expect-error
+    if (error.cause !== 'internal') {
+      // @ts-expect-error
+      consola.debug('Name:', error.name, 'Details:', error.details)
+      consola.error('Failed to connect to remote storage')
+    }
+    process.exit(1)
+  }
 
   const confirm = await consola.prompt(
     'This will delete all .env files from the remote storage. Are you sure?',
@@ -360,13 +382,15 @@ export async function status(argv: Arguments) {
   consola.start('Connecting to remote storage')
   try {
     const result = await verifyArgs(argv)
-    console.debug('After storage')
     storage = result.storage
     config = result.config
-  } catch (error) {
+  } catch (error: unknown) {
     // @ts-expect-error
-    consola.debug('Name:', error.name, 'Details:', error.details)
-    consola.error('Failed to connect to remote storage')
+    if (error.cause !== 'internal') {
+      // @ts-expect-error
+      consola.debug('Name:', error.name, 'Details:', error.details)
+      consola.error('Failed to connect to remote storage')
+    }
     process.exit(1)
   }
   consola.start(

@@ -3,7 +3,6 @@ import path from 'node:path'
 import { loadConfig } from 'c12'
 import defu from 'defu'
 import type { EnvsyncConfig } from './types'
-import { consola } from './utils'
 
 export const defaultConfig: Required<EnvsyncConfig> = {
   mergeEnvFiles: true,
@@ -31,7 +30,6 @@ export function verifyConfig(config: typeof envsyncConfig = envsyncConfig): {
   valid: boolean
 } {
   if (!config) {
-    consola.error('No configuration found. Please run init first.')
     return { config: {}, valid: false }
   }
   return { config, valid: true }

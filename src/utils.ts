@@ -58,7 +58,7 @@ export async function verifyArgs(argv: Arguments): Promise<{
   if (useRemoteConfig) {
     if (!backendType) {
       consola.error('Missing required argument for backend type')
-      throw new Error('Missing required argument for backend type')
+      throw new Error('Missing required argument for backend type', { cause: 'internal' })
     }
     switch (backendType) {
       case 'azure-storage': {
@@ -115,7 +115,7 @@ export async function verifyArgs(argv: Arguments): Promise<{
         break
       }
       default: {
-        throw new Error('Unsupported backend type')
+        throw new Error('Unsupported backend type', { cause: 'internal' })
       }
     }
 
@@ -124,13 +124,16 @@ export async function verifyArgs(argv: Arguments): Promise<{
       config = destr(await storage.getItem('envsync.json'))
     } else {
       consola.error('No configuration found at remote')
-      throw new Error('No configuration found at remote')
+      throw new Error('No configuration found at remote', { cause: 'internal' })
     }
   } else {
     if (verifyConfig().valid) {
       config = verifyConfig().config
       storage = await initializeStorage(config)
-    } else throw new Error('Invalid configuration')
+    } else {
+      consola.error('Invalid configuration')
+      throw new Error('Invalid configuration', { cause: 'internal' })
+    }
   }
   return {
     storage,
